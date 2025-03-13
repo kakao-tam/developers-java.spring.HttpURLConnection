@@ -80,6 +80,7 @@ src/main/java/com/example/demo/
     └── KakaoMessageRequest.java
 ```
 
-## 라이선스
+## 스크린샷
 
-이 프로젝트는 MIT 라이선스를 따릅니다.
+<img width="817" alt="image" src="https://github.com/user-attachments/assets/becf2d5d-8ba9-454d-977f-07cf823e0152" />
+
