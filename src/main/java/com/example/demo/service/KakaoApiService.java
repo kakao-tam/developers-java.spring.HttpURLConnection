@@ -26,6 +26,9 @@ public class KakaoApiService {
     @Value("${kakao.client-id}")
     private String clientId;
 
+    @Value("${kakao.client-secret}")
+    private String clientSecret;
+
     @Value("${kakao.kauth-host}")
     private String kauthHost;
 
@@ -65,14 +68,15 @@ public class KakaoApiService {
                 return true;
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            System.out.println("handleAuthorizationCallback error : " + e.getMessage());
+            return false;
         }
         return false;
     }
 
     private KakaoTokenResponse getToken(String code) throws Exception {
-        String params = String.format("grant_type=authorization_code&client_id=%s&code=%s",
-                clientId, code);
+        String params = String.format("grant_type=authorization_code&client_id=%s&client_secret=%s&code=%s",
+                clientId, clientSecret, code);
         String response = makeRequest(kauthHost + "/oauth/token", "POST", params);
         return objectMapper.readValue(response, KakaoTokenResponse.class);
     }
