@@ -9,7 +9,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 import org.springframework.web.util.UriComponentsBuilder;
-
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.InputStreamReader;
@@ -17,7 +16,7 @@ import java.io.OutputStreamWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
-import java.net.URL;
+import java.net.URI;
 import java.util.Scanner;
 
 @Service
@@ -44,9 +43,62 @@ public class KakaoApiService {
         this.objectMapper = objectMapper;
     }
 
+    public String createDefaultMessage() {
+        return "template_object={\"object_type\":\"text\",\"text\":\"Hello, world!\",\"link\":{\"web_url\":\"https://developers.kakao.com\",\"mobile_web_url\":\"https://developers.kakao.com\"}}";
+    }
+
     private HttpSession getSession() {
         ServletRequestAttributes attr = (ServletRequestAttributes) RequestContextHolder.currentRequestAttributes();
         return attr.getRequest().getSession();
+    }
+
+    private void saveAccessToken(String accessToken) {
+        getSession().setAttribute("access_token", accessToken);
+    }
+
+    private String getAccessToken() {
+        return (String) getSession().getAttribute("access_token");
+    }
+
+    private void invalidateSession() {
+        getSession().invalidate();
+    }
+
+    private String call(String method, String urlString, String body) throws Exception {
+        String result = "";
+        try {
+            String response = "";
+            URI uri = new URI(urlString);
+            HttpURLConnection conn = (HttpURLConnection) uri.toURL().openConnection();
+            conn.setRequestMethod(method);
+            conn.setRequestProperty("Authorization", "Bearer " + getAccessToken());
+            if (body != null) {
+                conn.setDoOutput(true);
+                BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(conn.getOutputStream()));
+                bw.write(body);
+                bw.flush();
+            }
+            conn.getResponseCode();
+
+            InputStream stream = conn.getErrorStream();
+            if (stream != null) {
+                try (Scanner scanner = new Scanner(stream)) {
+                    scanner.useDelimiter("\\Z");
+                    response = scanner.next();
+                }
+                System.out.println("error response : " + response);
+                return response;
+            }
+            BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream()));
+            String line = "";
+            while ((line = br.readLine()) != null) {
+                result += line;
+            }
+            br.close();
+        } catch (IOException e) {
+            return e.getMessage();
+        }
+        return result;
     }
 
     public String getAuthUrl(String scope) {
@@ -68,7 +120,6 @@ public class KakaoApiService {
                 return true;
             }
         } catch (Exception e) {
-            System.out.println("handleAuthorizationCallback error : " + e.getMessage());
             return false;
         }
         return false;
@@ -77,25 +128,13 @@ public class KakaoApiService {
     private KakaoTokenResponse getToken(String code) throws Exception {
         String params = String.format("grant_type=authorization_code&client_id=%s&client_secret=%s&code=%s",
                 clientId, clientSecret, code);
-        String response = makeRequest(kauthHost + "/oauth/token", "POST", params);
+        String response = call("POST", kauthHost + "/oauth/token", params);
         return objectMapper.readValue(response, KakaoTokenResponse.class);
-    }
-
-    private void saveAccessToken(String accessToken) {
-        getSession().setAttribute("access_token", accessToken);
-    }
-
-    private String getAccessToken() {
-        return (String) getSession().getAttribute("access_token");
-    }
-
-    private void invalidateSession() {
-        getSession().invalidate();
     }
 
     public ResponseEntity<?> getUserProfile() {
         try {
-            String response = makeRequest(kapiHost + "/v2/user/me", "GET", null);
+            String response = call("GET", kapiHost + "/v2/user/me", null);
             return ResponseEntity.ok(objectMapper.readValue(response, Object.class));
         } catch (Exception e) {
             e.printStackTrace();
@@ -105,7 +144,7 @@ public class KakaoApiService {
 
     public ResponseEntity<?> getFriends() {
         try {
-            String response = makeRequest(kapiHost + "/v1/api/talk/friends", "GET", null);
+            String response = call("GET", kapiHost + "/v1/api/talk/friends", null);
             return ResponseEntity.ok(objectMapper.readValue(response, Object.class));
         } catch (Exception e) {
             e.printStackTrace();
@@ -115,7 +154,7 @@ public class KakaoApiService {
 
     public ResponseEntity<?> sendMessage(String messageRequest) {
         try {
-            String response = makeRequest(kapiHost + "/v2/api/talk/memo/default/send", "POST", messageRequest);
+            String response = call("POST", kapiHost + "/v2/api/talk/memo/default/send", messageRequest);
             return ResponseEntity.ok(objectMapper.readValue(response, Object.class));
         } catch (Exception e) {
             e.printStackTrace();
@@ -125,8 +164,8 @@ public class KakaoApiService {
 
     public ResponseEntity<?> sendMessageToFriend(String uuid, String messageRequest) {
         try {
-            String response = makeRequest(
-                    kapiHost + "/v1/api/talk/friends/message/default/send?receiver_uuids=[" + uuid + "]", "POST",
+            String response = call("POST",
+                    kapiHost + "/v1/api/talk/friends/message/default/send?receiver_uuids=[" + uuid + "]",
                     messageRequest);
             return ResponseEntity.ok(objectMapper.readValue(response, Object.class));
         } catch (Exception e) {
@@ -137,7 +176,7 @@ public class KakaoApiService {
 
     public ResponseEntity<?> logout() {
         try {
-            String response = makeRequest(kapiHost + "/v1/user/logout", "POST", null);
+            String response = call("POST", kapiHost + "/v1/user/logout", null);
             invalidateSession();
             return ResponseEntity.ok(objectMapper.readValue(response, Object.class));
         } catch (Exception e) {
@@ -148,60 +187,12 @@ public class KakaoApiService {
 
     public ResponseEntity<?> unlink() {
         try {
-            String response = makeRequest(kapiHost + "/v1/user/unlink", "POST", null);
+            String response = call("POST", kapiHost + "/v1/user/unlink", null);
             invalidateSession();
             return ResponseEntity.ok(objectMapper.readValue(response, Object.class));
         } catch (Exception e) {
             e.printStackTrace();
             return ResponseEntity.internalServerError().build();
         }
-    }
-
-    public String createDefaultMessage() {
-        return "template_object={\"object_type\":\"text\",\"text\":\"Hello, world!\",\"link\":{\"web_url\":\"https://developers.kakao.com\",\"mobile_web_url\":\"https://developers.kakao.com\"}}";
-    }
-
-    private String makeRequest(String urlString, String method, String body) throws Exception {
-        String result = "";
-        try {
-            String response = "";
-            URL url = new URL(urlString);
-            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-            conn.setRequestMethod(method);
-            conn.setRequestProperty("Authorization", "Bearer " + getAccessToken());
-            if (body != null) {
-                System.out.println("param : " + body);
-                conn.setDoOutput(true);
-                BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(conn.getOutputStream()));
-                bw.write(body);
-                bw.flush();
-            }
-            int responseCode = conn.getResponseCode();
-            System.out.println("responseCode : " + responseCode);
-
-            System.out.println("reqURL : " + urlString);
-            System.out.println("method : " + method);
-            System.out.println("Authorization : Bearer " + getAccessToken());
-            InputStream stream = conn.getErrorStream();
-            if (stream != null) {
-                try (Scanner scanner = new Scanner(stream)) {
-                    scanner.useDelimiter("\\Z");
-                    response = scanner.next();
-                }
-                System.out.println("error response : " + response);
-                return response;
-            }
-            BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream()));
-            String line = "";
-            while ((line = br.readLine()) != null) {
-                result += line;
-            }
-            System.out.println("response body : " + result);
-
-            br.close();
-        } catch (IOException e) {
-            return e.getMessage();
-        }
-        return result;
     }
 }

@@ -6,7 +6,6 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.view.RedirectView;
 
 @RestController
-@RequestMapping("/api/kakao")
 public class KakaoController {
 
     private final KakaoApiService kakaoApiService;
@@ -23,7 +22,6 @@ public class KakaoController {
     @GetMapping("/redirect")
     public RedirectView handleRedirect(@RequestParam String code) {
         boolean isSuccess = kakaoApiService.handleAuthorizationCallback(code);
-        System.out.println("handleRedirect isSuccess : " + isSuccess);
         return new RedirectView("/index.html?login=" + (isSuccess ? "success" : "error"));
     }
 
