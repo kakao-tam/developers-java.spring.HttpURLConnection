@@ -17,7 +17,6 @@
 .
 │
 ├── /src/resources/static/index.html # 메인 HTML 파일
-└── /src/resources/static/style.css # 스타일시트
 ├── src/main/java/com/example/demo/controller/KakaoController.java # 컨트롤러 파일
 ├── src/main/java/com/example/demo/service/KakaoApiService.java # 서비스 파일
 ├── src/main/resources/application.yml # 설정 파일
